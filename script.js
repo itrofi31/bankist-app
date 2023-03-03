@@ -61,9 +61,13 @@ const inputLoanAmount = document.querySelector('.form__input--loan-amount');
 const inputCloseUsername = document.querySelector('.form__input--user');
 const inputClosePin = document.querySelector('.form__input--pin');
 
-const displayMovements = function (movements) {
+//add sorting to displayMovements function as a second parameter, then add movs variable, set as movements copy and sort this copy, when sort === true, movements = movs (sorted)
+
+const displayMovements = function (movements, sort = false) {
+  const movs = sort ? movements.slice().sort((a, b) => a - b) : movements;
+
   containerMovements.innerHTML = ''; //empty container
-  movements.forEach(function (mov, i) {
+  movs.forEach(function (mov, i) {
     //check if it is deposit or withdrawal
     const type = mov > 0 ? 'deposit' : 'withdrawal';
     //we build html template for movement row based on the array
@@ -201,6 +205,14 @@ btnClose.addEventListener('click', function (e) {
     labelWelcome.textContent = `Log in to get started`;
   }
   inputCloseUsername.value = inputClosePin.value = '';
+});
+
+//we need to define 'state' variable to know if sort is active, otherwise it's sorted just once
+let sorted = false;
+btnSort.addEventListener('click', function (e) {
+  e.preventDefault();
+  displayMovements(currentAccount.movements, !sorted);
+  sorted = !sorted;
 });
 
 const overallBalance = accounts
