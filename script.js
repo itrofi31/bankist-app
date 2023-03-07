@@ -103,6 +103,43 @@ const formatMovementDate = function (date) {
   }
 };
 
+const formatCur = function (value, locale, currency) {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: currency,
+  }).format(value);
+};
+
+const startLogOutTimer = function () {
+  //set time to 5 minutes
+  let time = 300;
+
+  //create 'tick' function for setInterval so its executed first and then start ticking avaery second in interval, we need to call it as well
+  const tick = () => {
+    //In each call print the remaining time to UI
+    let min = `${Math.trunc(time / 60)}`.padStart(2, 0);
+    let sec = `${time % 60}`.padStart(2, 0);
+
+    labelTimer.textContent = `${min}:${sec}`;
+
+    //when 0 seconds stop timer and log out
+    if (time < 0) {
+      clearInterval(timer);
+      currentAccount = '';
+      containerApp.style.opacity = '0';
+      labelWelcome.textContent = `Log in to get started`;
+    }
+    //decrease 1s
+    time--;
+  };
+
+  //Call the timer every second
+  tick();
+  const timer = setInterval(tick, 1000);
+
+  //return timer variable to use it in login function and check if timer is already workig when log in
+  return timer;
+};
 //add sorting to displayMovements function as a second parameter, then add movs variable, set as movements copy and sort this copy, when sort === true, movements = movs (sorted)
 
 const displayMovements = function (acc, sort = false) {
@@ -116,6 +153,7 @@ const displayMovements = function (acc, sort = false) {
     const displayDate = formatMovementDate(date);
     //check if it is deposit or withdrawal
     const type = mov > 0 ? 'deposit' : 'withdrawal';
+    const formattedMov = formatCur(mov, acc.locale, acc.currency);
     //we build html template for movement row based on the array
     const html = `
     <div class="movements__row">
@@ -123,7 +161,7 @@ const displayMovements = function (acc, sort = false) {
       i + 1
     } ${type}</div>
     <div class="movements__date">${displayDate}</div>
-      <div class="movements__value">${mov.toFixed(2)}€</div>
+      <div class="movements__value">${formattedMov}</div>
   </div>`;
     //add html to DOM
     containerMovements.insertAdjacentHTML('afterbegin', html);
@@ -133,7 +171,7 @@ const displayMovements = function (acc, sort = false) {
 
 const calcPrintBalance = function (accs) {
   const balance = accs.movements.reduce((acc, cur) => acc + cur, 0);
-  labelBalance.textContent = `${balance.toFixed(2)}€`;
+  labelBalance.textContent = formatCur(balance, accs.locale, accs.currency);
   accs.balance = balance;
 };
 // calcPrintBalance(account1.movements);
@@ -143,9 +181,9 @@ const calcDisplaySummary = function (acc) {
     .filter(mov => mov > 0)
     .reduce((acc, mov) => acc + mov, 0);
 
-  const outcomes = acc.movements
-    .filter(mov => mov < 0)
-    .reduce((acc, mov) => acc + mov, 0);
+  const outcomes = Math.abs(
+    acc.movements.filter(mov => mov < 0).reduce((acc, mov) => acc + mov, 0)
+  );
 
   const interest = acc.movements
     .filter(mov => mov > 0)
@@ -157,9 +195,9 @@ const calcDisplaySummary = function (acc) {
       row.style.backgroundColor = '#fafafa';
     }
   });
-  labelSumIn.textContent = `${incomes.toFixed(2)}€`;
-  labelSumOut.textContent = `${Math.abs(outcomes.toFixed(2))}€`;
-  labelSumInterest.textContent = `${interest.toFixed(2)}€`;
+  labelSumIn.textContent = formatCur(incomes, acc.locale, acc.currency);
+  labelSumOut.textContent = formatCur(outcomes, acc.locale, acc.currency);
+  labelSumInterest.textContent = formatCur(interest, acc.locale, acc.currency);
 };
 
 // calcDisplaySummary(account1.movements);
@@ -183,8 +221,9 @@ const updateUI = function (acc) {
 };
 
 //Event handler
+let currentAccount, timer; // create timer var in global scope to check inside of another function
+
 //login into account
-let currentAccount;
 btnLogin.addEventListener('click', function (e) {
   e.preventDefault();
   //compare value of input with value of nickname in accounts objects
@@ -215,6 +254,14 @@ btnLogin.addEventListener('click', function (e) {
     //clear input fields
     inputLoginUsername.value = inputLoginPin.value = '';
     inputLoginPin.blur();
+
+    //Timer
+    //check if there is already timer
+    if (timer) {
+      clearInterval(timer);
+    }
+    timer = startLogOutTimer();
+
     //Update UI
     updateUI(currentAccount);
   }
@@ -243,21 +290,30 @@ btnTransfer.addEventListener('click', function (e) {
 
     //Update UI
     updateUI(currentAccount);
+
+    //reset timer
+    clearInterval(timer);
+    timer = startLogOutTimer();
   }
-  console.log(recieverAcc);
 });
 
 btnLoan.addEventListener('click', function (e) {
   e.preventDefault();
   const amount = Math.floor(inputLoanAmount.value);
   if (amount > 0 && currentAccount.movements.some(mov => mov >= amount * 0.1)) {
-    currentAccount.movements.push(amount);
-    //add dates
-    currentAccount.movementsDates.push(new Date().toISOString());
-    updateUI(currentAccount);
+    setTimeout(function () {
+      currentAccount.movements.push(amount);
+      //add dates
+      currentAccount.movementsDates.push(new Date().toISOString());
+      updateUI(currentAccount);
+    }, 2500);
   }
   inputLoanAmount.value = '';
   inputLoanAmount.blur();
+
+  //reset timer
+  clearInterval(timer);
+  timer = startLogOutTimer();
 });
 
 btnClose.addEventListener('click', function (e) {
@@ -277,7 +333,6 @@ btnClose.addEventListener('click', function (e) {
   }
   inputCloseUsername.value = inputClosePin.value = '';
 });
-
 //we need to define 'state' variable to know if sort is active, otherwise it's sorted just once
 let sorted = false;
 btnSort.addEventListener('click', function (e) {
@@ -290,7 +345,3 @@ const overallBalance = accounts
   .map(acc => acc.movements)
   .flat()
   .reduce((acc, mov) => acc + mov, 0);
-
-currentAccount = account1;
-updateUI(currentAccount);
-containerApp.style.opacity = 100;
